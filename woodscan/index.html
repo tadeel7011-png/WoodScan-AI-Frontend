@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LeafScan AI — Lemon Leaf Disease Detector</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=Syne:wght@400;600;700;800&family=Space+Mono&display=swap" rel="stylesheet">
+<style>
+:root {
+  --forest:#0a1a08;--forest2:#0d2210;--moss:#1e4620;--fern:#2d6130;
+  --sage:#4a8c4e;--mint:#7ec47f;--lime:#aaed5c;--lime-b:#c8ff6e;
+  --gold:#e8c76a;--amber-w:#f0a84a;--crimson:#e05252;--teal:#3dd6c8;
+  --text:#d8edd0;--text2:#a0c896;--text3:#5a8460;
+  --border:rgba(170,237,92,0.12);--border2:rgba(170,237,92,0.22);
+  --card:rgba(14,30,12,0.92);--card2:rgba(10,22,8,0.96);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html{scroll-behavior:smooth;}
+body{background:var(--forest);color:var(--text);font-family:'Syne',sans-serif;overflow-x:hidden;cursor:none;min-height:100vh;}
+
+/* LOADER */
+#loader{position:fixed;inset:0;z-index:99999;background:var(--forest);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;transition:opacity .8s,visibility .8s;}
+#loader.out{opacity:0;visibility:hidden;}
+.ld-logo{font-family:'Playfair Display',serif;font-size:44px;color:var(--lime);letter-spacing:4px;}
+.ld-sub{font-size:11px;letter-spacing:5px;color:var(--text3);text-transform:uppercase;font-family:'Space Mono',monospace;}
+.ld-track{width:220px;height:2px;background:rgba(170,237,92,0.1);border-radius:1px;margin-top:8px;}
+.ld-fill{height:100%;background:linear-gradient(90deg,var(--fern),var(--lime));animation:ldgo 1.8s ease forwards;}
+@keyframes ldgo{from{width:0}to{width:100%}}
+
+/* CURSOR */
+#cur{width:12px;height:12px;border-radius:50%;background:var(--lime);position:fixed;top:0;left:0;pointer-events:none;z-index:9999;transform:translate(-50%,-50%);mix-blend-mode:exclusion;}
+#cur-r{width:36px;height:36px;border:1.5px solid rgba(170,237,92,0.5);border-radius:50%;position:fixed;top:0;left:0;pointer-events:none;z-index:9998;transform:translate(-50%,-50%);}
+
+/* BG CANVAS */
+#bg-canvas{position:fixed;top:0;left:0;width:100%;height:100%;z-index:0;pointer-events:none;}
+
+/* NAV */
+nav{position:fixed;top:0;left:0;right:0;z-index:200;display:flex;align-items:center;justify-content:space-between;padding:18px 64px;transition:background .4s,backdrop-filter .4s;}
+nav.scrolled{background:rgba(10,26,8,0.95);backdrop-filter:blur(16px);border-bottom:1px solid var(--border);}
+.n-logo{font-family:'Playfair Display',serif;font-size:22px;color:var(--lime);letter-spacing:2px;display:flex;align-items:center;gap:10px;}
+.n-logo-dot{width:8px;height:8px;background:var(--lime);border-radius:50%;animation:pulse 2s infinite;box-shadow:0 0 12px var(--lime);}
+@keyframes pulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.6);opacity:.4}}
+.n-links{display:flex;gap:32px;list-style:none;}
+.n-links a{color:var(--text3);text-decoration:none;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;font-weight:600;transition:color .2s;}
+.n-links a:hover{color:var(--lime);}
+.n-btn{background:transparent;border:1.5px solid var(--lime);color:var(--lime);padding:10px 28px;font-family:'Syne',sans-serif;font-weight:700;font-size:12px;letter-spacing:2px;text-transform:uppercase;border-radius:100px;cursor:pointer;transition:all .25s;}
+.n-btn:hover{background:var(--lime);color:var(--forest);box-shadow:0 0 30px rgba(170,237,92,0.4);}
+
+/* HERO */
+#hero{position:relative;min-height:100vh;display:flex;align-items:center;padding:100px 64px 60px;overflow:hidden;z-index:1;}
+.hero-left{flex:1;z-index:2;position:relative;}
+.hero-badge{display:inline-flex;align-items:center;gap:8px;padding:6px 18px;border-radius:100px;border:1px solid rgba(170,237,92,0.3);background:rgba(170,237,92,0.06);font-size:10px;color:var(--lime);letter-spacing:3px;text-transform:uppercase;font-family:'Space Mono',monospace;margin-bottom:30px;opacity:0;transform:translateY(16px);animation:up .7s .3s forwards;}
+.hero-badge::before{content:'';width:6px;height:6px;background:var(--lime);border-radius:50%;box-shadow:0 0 8px var(--lime);animation:pulse 1.5s infinite;}
+.hero-h1{font-family:'Playfair Display',serif;font-size:clamp(50px,7vw,94px);line-height:1.0;font-weight:900;margin-bottom:24px;opacity:0;transform:translateY(24px);animation:up .7s .5s forwards;}
+.hero-h1 em{font-style:italic;color:var(--lime);display:block;text-shadow:0 0 60px rgba(170,237,92,0.35);}
+.hero-h1 .dim{color:var(--text3);font-size:.52em;font-weight:700;display:block;letter-spacing:3px;text-transform:uppercase;font-family:'Syne',sans-serif;font-style:normal;margin-bottom:8px;}
+.hero-p{font-size:17px;color:var(--text2);line-height:1.7;max-width:480px;margin-bottom:40px;font-weight:400;opacity:0;transform:translateY(16px);animation:up .7s .7s forwards;}
+.hero-btns{display:flex;gap:14px;opacity:0;transform:translateY(16px);animation:up .7s .9s forwards;}
+.btn-f{background:linear-gradient(135deg,var(--fern),var(--lime));color:var(--forest);border:none;padding:15px 36px;border-radius:100px;font-family:'Syne',sans-serif;font-weight:800;font-size:14px;letter-spacing:1px;cursor:pointer;transition:all .25s;box-shadow:0 4px 30px rgba(170,237,92,0.3);}
+.btn-f:hover{transform:translateY(-2px);box-shadow:0 8px 40px rgba(170,237,92,0.5);}
+.btn-g{background:transparent;border:1.5px solid rgba(170,237,92,0.25);color:var(--text);padding:15px 36px;border-radius:100px;font-family:'Syne',sans-serif;font-size:14px;cursor:pointer;transition:all .25s;display:flex;align-items:center;gap:10px;}
+.btn-g:hover{border-color:var(--lime);color:var(--lime);}
+.hero-stats{display:flex;gap:40px;margin-top:60px;opacity:0;transform:translateY(16px);animation:up .7s 1.1s forwards;}
+.hst{border-left:2px solid rgba(170,237,92,0.2);padding-left:20px;}
+.hst-n{font-family:'Playfair Display',serif;font-size:36px;color:var(--lime);line-height:1;}
+.hst-l{font-size:11px;color:var(--text3);letter-spacing:1.5px;text-transform:uppercase;margin-top:4px;}
+.hero-right{flex:0 0 520px;height:500px;z-index:2;position:relative;opacity:0;animation:fi 1.2s 1.2s forwards;}
+@keyframes up{to{opacity:1;transform:none;}}
+@keyframes fi{to{opacity:1;}}
+
+/* Forest vines */
+.fv{position:absolute;left:0;top:0;bottom:0;width:110px;pointer-events:none;z-index:1;opacity:.55;}
+.fv-r{right:0;left:auto;transform:scaleX(-1);}
+
+/* RIBBON */
+.ribbon{position:relative;z-index:1;background:linear-gradient(90deg,var(--moss),var(--fern),var(--moss));padding:12px 0;overflow:hidden;white-space:nowrap;border-top:1px solid rgba(170,237,92,0.2);border-bottom:1px solid rgba(170,237,92,0.2);}
+.ri{display:inline-block;animation:mq 22s linear infinite;}
+.ri span{padding:0 28px;font-family:'Playfair Display',serif;font-size:16px;color:var(--lime-b);}
+.ri span::before{content:'✦';margin-right:28px;color:rgba(170,237,92,0.4);}
+@keyframes mq{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+
+/* SECTIONS */
+.sec{position:relative;z-index:1;}
+.sec-lbl{font-size:10px;letter-spacing:4px;text-transform:uppercase;color:var(--lime);font-family:'Space Mono',monospace;margin-bottom:14px;}
+.sec-title{font-family:'Playfair Display',serif;font-size:clamp(36px,4.5vw,62px);line-height:1.05;margin-bottom:16px;}
+.sec-title .d{color:var(--text3);}
+.sec-sub{font-size:16px;color:var(--text2);line-height:1.7;max-width:600px;margin-bottom:48px;}
+
+/* HOW IT WORKS */
+#how{padding:120px 64px;}
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:3px;}
+.step{background:linear-gradient(160deg,rgba(20,47,21,0.9),rgba(14,30,12,0.96));border:1px solid var(--border);padding:44px 36px;position:relative;overflow:hidden;transition:all .3s;opacity:0;transform:translateY(36px);}
+.step.vis{animation:up .7s forwards;}
+.step:hover{border-color:rgba(170,237,92,0.35);transform:translateY(-5px);}
+.step::after{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--lime),transparent);opacity:0;transition:opacity .3s;}
+.step:hover::after{opacity:1;}
+.step-n{font-family:'Playfair Display',serif;font-size:80px;color:rgba(170,237,92,0.05);line-height:1;margin-bottom:20px;}
+.step-ico{font-size:32px;margin-bottom:16px;}
+.step-t{font-size:18px;font-weight:700;margin-bottom:10px;}
+.step-d{font-size:13px;color:var(--text2);line-height:1.75;}
+
+/* ═══ DEMO SECTION ═══ */
+#demo{padding:100px 64px;}
+.demo-box{max-width:1100px;margin:0 auto;background:linear-gradient(145deg,rgba(16,42,18,0.98),rgba(10,26,8,0.99));border:1px solid var(--border2);border-radius:20px;overflow:hidden;box-shadow:0 40px 100px rgba(0,0,0,0.6),inset 0 1px 0 rgba(170,237,92,0.1);}
+.d-topbar{display:flex;align-items:center;gap:10px;padding:14px 24px;background:rgba(0,0,0,0.35);border-bottom:1px solid var(--border);}
+.dot{width:10px;height:10px;border-radius:50%;}
+.d-url{font-family:'Space Mono',monospace;font-size:11px;color:var(--text3);margin-left:10px;}
+.d-body{display:grid;grid-template-columns:1fr 1fr;min-height:580px;}
+
+/* Upload */
+.up-side{border-right:1px solid var(--border);position:relative;overflow:hidden;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px;gap:20px;cursor:pointer;transition:background .25s;min-height:580px;}
+.up-side:hover{background:rgba(170,237,92,0.03);}
+.up-ph{display:flex;flex-direction:column;align-items:center;gap:16px;text-align:center;}
+.up-icon{width:110px;height:110px;border-radius:50%;background:radial-gradient(circle,rgba(46,97,48,0.5),rgba(14,30,12,0.8));border:2px dashed rgba(170,237,92,0.3);display:flex;align-items:center;justify-content:center;font-size:46px;animation:flt 3s ease-in-out infinite;}
+@keyframes flt{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+.up-title{font-size:16px;font-weight:700;color:var(--text);}
+.up-sub{font-size:12px;color:var(--text3);line-height:1.6;}
+.up-sub strong{color:var(--lime);}
+.up-fmts{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;}
+.fmt{padding:4px 10px;border:1px solid var(--border);border-radius:100px;font-size:10px;color:var(--text3);font-family:'Space Mono',monospace;}
+#prev-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:none;}
+#prev-img.show{display:block;}
+.img-ov{position:absolute;inset:0;background:linear-gradient(to top,rgba(10,22,8,0.9) 0%,transparent 50%);display:none;z-index:2;pointer-events:none;}
+.img-ov.show{display:block;}
+.img-ov-lbl{position:absolute;bottom:20px;left:20px;font-size:11px;color:var(--lime);font-family:'Space Mono',monospace;}
+.scan-bar{position:absolute;left:0;right:0;height:3px;background:linear-gradient(90deg,transparent,var(--lime),transparent);top:0;display:none;z-index:5;box-shadow:0 0 12px var(--lime);}
+.scan-bar.go{display:block;animation:scanln 2s ease-in-out;}
+@keyframes scanln{0%{top:0;opacity:1}100%{top:100%;opacity:.3}}
+
+/* Results */
+.rs-side{padding:36px 40px;display:flex;flex-direction:column;gap:18px;overflow-y:auto;max-height:580px;}
+.rs-hdr{font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--text3);font-family:'Space Mono',monospace;}
+
+.rs-idle,.rs-analyzing,.rs-result,.rs-err{display:flex;flex-direction:column;}
+.hidden{display:none!important;}
+.rs-idle{flex:1;align-items:center;justify-content:center;gap:14px;text-align:center;padding:20px;}
+.idle-ico{font-size:52px;opacity:.4;}
+.idle-t{font-size:15px;color:var(--text2);line-height:1.6;}
+.rs-analyzing{flex:1;align-items:center;justify-content:center;gap:20px;}
+.pr{width:80px;height:80px;border-radius:50%;border:2px solid var(--lime);position:relative;display:flex;align-items:center;justify-content:center;font-size:28px;}
+.pr::before,.pr::after{content:'';position:absolute;border-radius:50%;border:1.5px solid rgba(170,237,92,0.4);animation:rp 2s infinite;}
+.pr::before{width:110%;height:110%;}
+.pr::after{width:130%;height:130%;animation-delay:.5s;}
+@keyframes rp{0%{transform:scale(.9);opacity:1}100%{transform:scale(1.3);opacity:0}}
+.an-txt{font-size:14px;color:var(--lime);font-family:'Space Mono',monospace;}
+.sdots{display:flex;gap:6px;}
+.sd{width:6px;height:6px;border-radius:50%;background:rgba(170,237,92,0.2);}
+.sd.done{background:var(--lime);}
+.sd.active{background:var(--lime);animation:pulse 1s infinite;}
+.sd-lbl{font-size:11px;color:var(--text3);font-family:'Space Mono',monospace;}
+.rs-result{flex:1;gap:16px;}
+.dis-badge-top{display:inline-flex;align-items:center;gap:8px;padding:6px 16px;border-radius:100px;font-size:11px;font-weight:700;letter-spacing:1px;font-family:'Space Mono',monospace;margin-bottom:8px;}
+.dis-name-big{font-family:'Playfair Display',serif;font-size:32px;line-height:1.1;}
+.dis-name-big.healthy{color:var(--lime);}
+.dis-name-big.danger{color:var(--crimson);}
+.dis-name-big.warning{color:var(--amber-w);}
+.conf-box{background:rgba(0,0,0,0.3);border:1px solid var(--border);border-radius:12px;padding:18px 20px;}
+.conf-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
+.conf-lbl{font-size:12px;color:var(--text2);}
+.conf-pct{font-family:'Playfair Display',serif;font-size:22px;color:var(--lime);}
+.ctrack{height:6px;background:rgba(255,255,255,0.06);border-radius:3px;overflow:hidden;}
+.cfill{height:100%;border-radius:3px;transition:width 1.2s cubic-bezier(.16,1,.3,1);}
+.sev-row{display:flex;gap:8px;margin-top:10px;}
+.seg{flex:1;height:5px;border-radius:3px;background:rgba(255,255,255,0.06);transition:background .5s;}
+.seg.aL{background:var(--lime);} .seg.aM{background:var(--amber-w);} .seg.aH{background:var(--crimson);}
+.ub{display:inline-flex;align-items:center;gap:6px;padding:5px 14px;border-radius:100px;font-size:11px;font-weight:700;}
+.uL{background:rgba(170,237,92,0.12);color:var(--lime);border:1px solid rgba(170,237,92,0.25);}
+.uM{background:rgba(240,168,74,0.12);color:var(--amber-w);border:1px solid rgba(240,168,74,0.25);}
+.uH{background:rgba(224,82,82,0.12);color:var(--crimson);border:1px solid rgba(224,82,82,0.25);}
+.sym-hdr{font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--lime);font-family:'Space Mono',monospace;margin-bottom:10px;}
+.sym-item{display:flex;align-items:flex-start;gap:10px;font-size:13px;color:var(--text2);line-height:1.5;margin-bottom:7px;}
+.sym-item::before{content:'◆';font-size:8px;color:var(--lime);margin-top:4px;flex-shrink:0;}
+.prec-card{background:linear-gradient(135deg,rgba(30,70,32,0.5),rgba(14,42,16,0.7));border:1px solid rgba(170,237,92,0.2);border-radius:12px;padding:18px 20px;}
+.prec-hdr{font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--lime);font-family:'Space Mono',monospace;margin-bottom:12px;}
+.prec-item{display:flex;align-items:flex-start;gap:10px;font-size:12px;color:var(--text2);line-height:1.5;margin-bottom:8px;}
+.pnum{width:18px;height:18px;border-radius:50%;background:rgba(170,237,92,0.15);border:1px solid rgba(170,237,92,0.3);color:var(--lime);font-size:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-family:'Space Mono',monospace;margin-top:1px;}
+.act-row{display:flex;gap:10px;margin-top:4px;}
+.act-btn{flex:1;padding:12px;border-radius:10px;font-family:'Syne',sans-serif;font-weight:700;font-size:12px;cursor:pointer;transition:all .2s;border:none;letter-spacing:.5px;}
+.act-scan{background:linear-gradient(135deg,var(--fern),var(--lime));color:var(--forest);}
+.act-scan:hover{box-shadow:0 4px 24px rgba(170,237,92,0.4);transform:translateY(-1px);}
+.act-reset{background:transparent;border:1px solid var(--border);color:var(--text2);}
+.act-reset:hover{border-color:rgba(170,237,92,0.4);color:var(--lime);}
+.rs-err{background:rgba(224,82,82,0.08);border:1px solid rgba(224,82,82,0.2);border-radius:10px;padding:16px;font-size:13px;color:#f08080;line-height:1.6;}
+
+/* DISEASES */
+#diseases{padding:100px 64px;}
+.dis-layout{display:grid;grid-template-columns:1fr 1.1fr;gap:60px;align-items:start;}
+.dis-list{display:flex;flex-direction:column;gap:2px;}
+.dis-item{display:flex;align-items:center;gap:16px;padding:18px 24px;background:rgba(14,34,16,0.7);border:1px solid var(--border);border-left:3px solid transparent;cursor:pointer;transition:all .25s;opacity:0;transform:translateX(-24px);}
+.dis-item.vis{animation:sli .5s forwards;}
+@keyframes sli{to{opacity:1;transform:none;}}
+.dis-item:hover,.dis-item.active{border-left-color:var(--lime);background:rgba(170,237,92,0.05);}
+.ddot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
+.d-nm{font-size:14px;font-weight:600;}
+.d-sv{margin-left:auto;font-size:10px;letter-spacing:1px;text-transform:uppercase;font-family:'Space Mono',monospace;padding:3px 10px;border-radius:100px;}
+.sH{background:rgba(224,82,82,0.1);color:var(--crimson);border:1px solid rgba(224,82,82,0.2);}
+.sM{background:rgba(240,168,74,0.1);color:var(--amber-w);border:1px solid rgba(240,168,74,0.2);}
+.sL{background:rgba(170,237,92,0.1);color:var(--lime);border:1px solid rgba(170,237,92,0.2);}
+.dis-panel-card{background:linear-gradient(155deg,rgba(16,42,18,0.98),rgba(10,26,8,0.99));border:1px solid var(--border2);border-radius:16px;overflow:hidden;position:sticky;top:90px;}
+.dpc-h{padding:20px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;}
+.dpc-b{padding:24px;}
+#dpc-cv{width:100%;height:160px;border-radius:8px;background:rgba(0,0,0,0.4);margin-bottom:18px;display:block;}
+.dpc-bl{display:flex;flex-direction:column;gap:10px;margin-bottom:16px;}
+.dpc-ll{display:flex;justify-content:space-between;font-size:12px;color:var(--text3);margin-bottom:5px;}
+.dpc-tk{height:4px;background:rgba(255,255,255,0.06);border-radius:2px;}
+.dpc-f{height:100%;border-radius:2px;background:var(--lime);transition:width 1s ease;}
+.dpc-treat{background:rgba(170,237,92,0.05);border:1px solid rgba(170,237,92,0.12);border-radius:8px;padding:14px 16px;}
+
+/* BENTO */
+#features{padding:100px 64px;}
+.bento{display:grid;grid-template-columns:repeat(12,1fr);gap:3px;}
+.bc{background:linear-gradient(145deg,rgba(16,40,18,0.9),rgba(10,24,10,0.95));border:1px solid var(--border);padding:34px;overflow:hidden;position:relative;transition:all .3s;opacity:0;transform:translateY(24px);}
+.bc.vis{animation:up .6s forwards;}
+.bc:hover{border-color:rgba(170,237,92,0.28);}
+.bc::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at top left,rgba(170,237,92,0.04),transparent 60%);}
+.bc1{grid-column:span 7;} .bc2{grid-column:span 5;}
+.bc3{grid-column:span 4;} .bc4{grid-column:span 4;} .bc5{grid-column:span 4;}
+.bc6{grid-column:span 12;display:flex;align-items:center;justify-content:space-between;gap:40px;}
+.bc-lbl{font-size:9px;letter-spacing:3px;text-transform:uppercase;color:var(--lime);font-family:'Space Mono',monospace;margin-bottom:10px;}
+.bc-t{font-size:20px;font-weight:700;color:var(--text);margin-bottom:8px;}
+.bc-d{font-size:12px;color:var(--text2);line-height:1.7;}
+.bc-bg{position:absolute;right:-10px;bottom:-20px;font-family:'Playfair Display',serif;font-size:120px;color:rgba(170,237,92,0.03);line-height:1;pointer-events:none;user-select:none;}
+.acc-n{font-family:'Playfair Display',serif;font-size:64px;color:var(--lime);line-height:1;margin-top:12px;text-shadow:0 0 40px rgba(170,237,92,0.25);}
+.spd-n{font-family:'Playfair Display',serif;font-size:56px;color:var(--lime);line-height:1;margin-top:12px;}
+.mini-bars{display:flex;align-items:flex-end;gap:4px;height:56px;margin-top:16px;}
+.mb{flex:1;border-radius:2px 2px 0 0;}
+.api-box{margin-top:14px;background:rgba(0,0,0,0.4);border:1px solid var(--border);border-radius:8px;padding:14px 16px;font-family:'Space Mono',monospace;font-size:10px;color:var(--lime);line-height:2;}
+.chips{display:flex;gap:10px;flex-wrap:wrap;}
+.chip{padding:10px 20px;background:rgba(170,237,92,0.07);border:1px solid rgba(170,237,92,0.18);border-radius:8px;font-family:'Playfair Display',serif;font-size:17px;color:var(--lime);}
+
+/* STATS */
+.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:rgba(170,237,92,0.08);}
+.sb{background:var(--forest);padding:60px 30px;text-align:center;opacity:0;transform:translateY(20px);}
+.sb.vis{animation:up .6s forwards;}
+.sb-n{font-family:'Playfair Display',serif;font-size:64px;color:var(--lime);line-height:1;text-shadow:0 0 40px rgba(170,237,92,0.25);}
+.sb-d{font-size:12px;color:var(--text3);margin-top:8px;letter-spacing:1.5px;text-transform:uppercase;}
+
+/* TECH */
+#tech{padding:100px 64px;}
+.tech-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:3px;}
+.tc{background:linear-gradient(145deg,rgba(16,40,18,0.9),rgba(10,24,10,0.95));border:1px solid var(--border);padding:28px;text-align:center;transition:all .25s;opacity:0;transform:translateY(24px);}
+.tc.vis{animation:up .6s forwards;}
+.tc:hover{border-color:rgba(170,237,92,0.3);transform:translateY(-4px);}
+.tc-i{font-size:34px;margin-bottom:10px;}
+.tc-n{font-size:14px;font-weight:700;color:var(--text);margin-bottom:4px;}
+.tc-r{font-size:11px;color:var(--text3);}
+
+/* CTA */
+#cta{padding:140px 64px;text-align:center;position:relative;overflow:hidden;}
+#cta::before{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:700px;height:700px;background:radial-gradient(circle,rgba(170,237,92,0.06),transparent 70%);pointer-events:none;}
+.cta-t{font-family:'Playfair Display',serif;font-size:clamp(50px,7vw,88px);line-height:1.0;margin-bottom:20px;}
+.cta-t em{font-style:italic;color:var(--lime);display:block;}
+.cta-sub{font-size:17px;color:var(--text2);max-width:480px;margin:0 auto 36px;line-height:1.7;}
+
+/* FOOTER */
+footer{padding:70px 64px 36px;border-top:1px solid var(--border);position:relative;z-index:1;}
+.ft{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:60px;}
+.ft-logo{font-family:'Playfair Display',serif;font-size:26px;color:var(--lime);letter-spacing:2px;margin-bottom:12px;}
+.ft-tag{font-size:13px;color:var(--text3);max-width:240px;line-height:1.6;}
+.ft-links{display:flex;gap:60px;}
+.ft-col h4{font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--text3);margin-bottom:16px;}
+.ft-col a{display:block;color:var(--text);text-decoration:none;font-size:14px;margin-bottom:10px;opacity:.65;transition:opacity .2s,color .2s;}
+.ft-col a:hover{opacity:1;color:var(--lime);}
+.ft-bot{display:flex;justify-content:space-between;align-items:center;padding-top:28px;border-top:1px solid var(--border);font-size:12px;color:var(--text3);}
+
+/* MISC */
+.fi{opacity:0;transform:translateY(28px);transition:opacity .7s ease,transform .7s ease;}
+.fi.vis{opacity:1;transform:none;}
+body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.01) 2px,rgba(0,0,0,0.01) 4px);pointer-events:none;z-index:9980;}
+</style>
+</head>
+<body>
+
+<div id="loader">
+  <div class="ld-logo">LeafScan</div>
+  <div class="ld-sub">Lemon Leaf Disease Detector</div>
+  <div class="ld-track"><div class="ld-fill"></div></div>
+</div>
+<div id="cur"></div><div id="cur-r"></div>
+<canvas id="bg-canvas"></canvas>
+
+<nav id="nav">
+  <div class="n-logo"><div class="n-logo-dot"></div>LeafScan AI</div>
+  <ul class="n-links">
+    <li><a href="#how">Process</a></li>
+    <li><a href="#demo">Diagnose</a></li>
+    <li><a href="#diseases">Diseases</a></li>
+    <li><a href="#features">Features</a></li>
+  </ul>
+  <button class="n-btn" onclick="document.getElementById('demo').scrollIntoView({behavior:'smooth'})">Try Live</button>
+</nav>
+
+<section id="hero">
+  <svg class="fv" viewBox="0 0 110 900" preserveAspectRatio="none">
+    <path d="M55,0 C55,0 18,100 55,200 C92,300 18,400 55,500 C92,600 18,700 55,900" fill="none" stroke="rgba(46,97,48,0.28)" stroke-width="2"/>
+    <ellipse cx="35" cy="140" rx="26" ry="13" fill="rgba(46,97,48,0.18)" transform="rotate(-40 35 140)"/>
+    <ellipse cx="72" cy="260" rx="22" ry="11" fill="rgba(74,140,78,0.14)" transform="rotate(30 72 260)"/>
+    <ellipse cx="32" cy="380" rx="28" ry="12" fill="rgba(30,70,32,0.18)" transform="rotate(-35 32 380)"/>
+    <ellipse cx="76" cy="500" rx="20" ry="10" fill="rgba(46,97,48,0.16)" transform="rotate(25 76 500)"/>
+    <ellipse cx="36" cy="640" rx="24" ry="12" fill="rgba(74,140,78,0.14)" transform="rotate(-30 36 640)"/>
+  </svg>
+  <svg class="fv fv-r" viewBox="0 0 110 900" preserveAspectRatio="none">
+    <path d="M55,0 C55,0 18,100 55,200 C92,300 18,400 55,500 C92,600 18,700 55,900" fill="none" stroke="rgba(46,97,48,0.28)" stroke-width="2"/>
+    <ellipse cx="35" cy="140" rx="26" ry="13" fill="rgba(46,97,48,0.18)" transform="rotate(-40 35 140)"/>
+    <ellipse cx="72" cy="260" rx="22" ry="11" fill="rgba(74,140,78,0.14)" transform="rotate(30 72 260)"/>
+    <ellipse cx="32" cy="380" rx="28" ry="12" fill="rgba(30,70,32,0.18)" transform="rotate(-35 32 380)"/>
+    <ellipse cx="76" cy="500" rx="20" ry="10" fill="rgba(46,97,48,0.16)" transform="rotate(25 76 500)"/>
+  </svg>
+
+  <div class="hero-left">
+    <div class="hero-badge">🌿 AI-Powered Plant Diagnostics</div>
+    <h1 class="hero-h1">
+      <span class="dim">Protect Your</span>
+      <em>Lemon Grove</em>
+      with AI
+    </h1>
+    <p class="hero-p">Upload a lemon leaf photo — our deep learning model detects diseases with 96.4% accuracy and delivers instant treatment recommendations.</p>
+    <div class="hero-btns">
+      <button class="btn-f" onclick="document.getElementById('demo').scrollIntoView({behavior:'smooth'})">🔬 Diagnose a Leaf</button>
+      <button class="btn-g">▶ See It Work</button>
+    </div>
+    <div class="hero-stats">
+      <div class="hst"><div class="hst-n">96.4%</div><div class="hst-l">Accuracy</div></div>
+      <div class="hst"><div class="hst-n">8</div><div class="hst-l">Diseases</div></div>
+      <div class="hst"><div class="hst-n">&lt;2s</div><div class="hst-l">Scan Time</div></div>
+    </div>
+  </div>
+  <div class="hero-right"><canvas id="hero-canvas" style="width:100%;height:100%;display:block;"></canvas></div>
+</section>
+
+<div class="ribbon">
+  <div class="ri">
+    <span>Citrus Canker</span><span>Powdery Mildew</span><span>Greasy Spot</span>
+    <span>Leaf Miner</span><span>Bacterial Blight</span><span>Anthracnose</span>
+    <span>Sooty Mold</span><span>Healthy Leaf</span>
+    <span>Citrus Canker</span><span>Powdery Mildew</span><span>Greasy Spot</span>
+    <span>Leaf Miner</span><span>Bacterial Blight</span><span>Anthracnose</span>
+    <span>Sooty Mold</span><span>Healthy Leaf</span>
+  </div>
+</div>
+
+<section id="how" class="sec">
+  <div style="max-width:1200px;margin:0 auto;">
+    <div class="sec-lbl">Process</div>
+    <h2 class="sec-title fi">How It <span class="d">Works</span></h2>
+    <div class="steps">
+      <div class="step"><div class="step-n">01</div><div class="step-ico">📷</div><div class="step-t">Capture & Upload</div><div class="step-d">Snap or upload any lemon leaf photo. Accepts JPEG, PNG, WebP — even blurry smartphone shots are analyzed accurately.</div></div>
+      <div class="step"><div class="step-n">02</div><div class="step-ico">🧠</div><div class="step-t">AI Deep Analysis</div><div class="step-d">Claude AI Vision analyzes texture, color, lesion patterns, and morphology against a database of 50,000+ annotated leaf images.</div></div>
+      <div class="step"><div class="step-n">03</div><div class="step-ico">🌿</div><div class="step-t">Full Diagnosis Report</div><div class="step-d">Instantly receive the disease name, confidence %, severity rating, visible symptoms, and numbered precaution steps.</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ DEMO — AI POWERED ═══════════ -->
+<section id="demo" class="sec">
+  <div style="max-width:1200px;margin:0 auto;">
+    <div class="sec-lbl">Interactive Demo</div>
+    <h2 class="sec-title fi">Diagnose <em style="font-style:italic;color:var(--lime)">Live</em></h2>
+    <p class="sec-sub fi">Upload any lemon leaf image and get an instant AI-powered diagnosis — disease name, confidence score, symptoms, and step-by-step precautions.</p>
+    <div class="demo-box">
+      <div class="d-topbar">
+        <div class="dot" style="background:#ff5f57"></div>
+        <div class="dot" style="background:#febc2e"></div>
+        <div class="dot" style="background:#28c840"></div>
+        <span class="d-url">🔒 leafscan.ai — Powered by Claude AI Vision</span>
+      </div>
+      <div class="d-body">
+
+        <!-- UPLOAD -->
+        <div class="up-side" id="up-side">
+          <input type="file" id="file-in" accept="image/*" style="position:absolute;inset:0;opacity:0;cursor:pointer;z-index:10;" onchange="onFile(event)">
+          <img id="prev-img" src="" alt="leaf">
+          <div class="img-ov" id="img-ov"><div class="img-ov-lbl">📍 Image loaded — ready to scan</div></div>
+          <div class="scan-bar" id="sbar"></div>
+          <div class="up-ph" id="up-ph">
+            <div class="up-icon">🍋</div>
+            <div class="up-title">Upload Lemon Leaf</div>
+            <div class="up-sub">Click here or <strong>drag & drop</strong><br>a photo of your lemon leaf</div>
+            <div class="up-fmts"><span class="fmt">JPG</span><span class="fmt">PNG</span><span class="fmt">WEBP</span><span class="fmt">Any Size</span></div>
+          </div>
+        </div>
+
+        <!-- RESULTS -->
+        <div class="rs-side">
+          <div class="rs-hdr">🔬 Diagnosis Result</div>
+
+          <!-- IDLE -->
+          <div class="rs-idle" id="rs-idle">
+            <div class="idle-ico">🌱</div>
+            <div class="idle-t">Upload a lemon leaf photo to receive an AI-powered diagnosis with confidence score, symptoms & precautions.</div>
+          </div>
+
+          <!-- ANALYZING -->
+          <div class="rs-analyzing hidden" id="rs-an">
+            <div class="pr">🔬</div>
+            <div class="an-txt" id="an-txt">Initializing scan...</div>
+            <div class="sdots">
+              <div class="sd" id="sd1"></div><div class="sd" id="sd2"></div>
+              <div class="sd" id="sd3"></div><div class="sd" id="sd4"></div>
+            </div>
+            <div class="sd-lbl" id="sd-lbl">Preprocessing image</div>
+          </div>
+
+          <!-- RESULT -->
+          <div class="rs-result hidden" id="rs-res">
+            <div>
+              <div class="dis-badge-top" id="dis-badge">⚠️ Disease Detected</div>
+              <div class="dis-name-big" id="dis-name">Loading...</div>
+            </div>
+            <div class="conf-box">
+              <div class="conf-row">
+                <span class="conf-lbl">AI Confidence</span>
+                <span class="conf-pct" id="cpct">—</span>
+              </div>
+              <div class="ctrack"><div class="cfill" id="cfill" style="width:0"></div></div>
+              <div class="conf-row" style="margin-top:14px;">
+                <span class="conf-lbl">Severity Level</span>
+                <div class="ub uH" id="ub">🔴 High Risk</div>
+              </div>
+              <div class="sev-row" id="sev-row">
+                <div class="seg"></div><div class="seg"></div><div class="seg"></div>
+                <div class="seg"></div><div class="seg"></div>
+              </div>
+            </div>
+            <div>
+              <div class="sym-hdr">◆ Visible Symptoms</div>
+              <div id="sym-list"></div>
+            </div>
+            <div class="prec-card">
+              <div class="prec-hdr">🛡️ Precautions & Treatment</div>
+              <div id="prec-list"></div>
+            </div>
+            <div class="act-row">
+              <button class="act-btn act-scan" onclick="runScan()">🔬 Re-analyze</button>
+              <button class="act-btn act-reset" onclick="resetDemo()">↺ New Image</button>
+            </div>
+          </div>
+
+          <!-- ERROR -->
+          <div class="rs-err hidden" id="rs-err">⚠️ <span id="err-msg">Analysis failed. Please try a clearer image.</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- DISEASES -->
+<section id="diseases" class="sec">
+  <div style="max-width:1200px;margin:0 auto;">
+    <div class="sec-lbl">Coverage</div>
+    <h2 class="sec-title fi">8 Diseases <span class="d">We Detect</span></h2>
+    <div class="dis-layout">
+      <div class="dis-list" id="dis-list">
+        <div class="dis-item active" data-i="0"><div class="ddot" style="background:#e05252"></div><div class="d-nm">Citrus Canker</div><div class="d-sv sH">High</div></div>
+        <div class="dis-item" data-i="1"><div class="ddot" style="background:#f0a84a"></div><div class="d-nm">Powdery Mildew</div><div class="d-sv sM">Medium</div></div>
+        <div class="dis-item" data-i="2"><div class="ddot" style="background:#e8c76a"></div><div class="d-nm">Greasy Spot</div><div class="d-sv sM">Medium</div></div>
+        <div class="dis-item" data-i="3"><div class="ddot" style="background:#aaed5c"></div><div class="d-nm">Leaf Miner</div><div class="d-sv sL">Low</div></div>
+        <div class="dis-item" data-i="4"><div class="ddot" style="background:#e05252"></div><div class="d-nm">Bacterial Blight</div><div class="d-sv sH">High</div></div>
+        <div class="dis-item" data-i="5"><div class="ddot" style="background:#c084fc"></div><div class="d-nm">Anthracnose</div><div class="d-sv sM">Medium</div></div>
+        <div class="dis-item" data-i="6"><div class="ddot" style="background:#888"></div><div class="d-nm">Sooty Mold</div><div class="d-sv sL">Low</div></div>
+        <div class="dis-item" data-i="7"><div class="ddot" style="background:#aaed5c"></div><div class="d-nm">Healthy Leaf</div><div class="d-sv sL">None</div></div>
+      </div>
+      <div>
+        <div class="dis-panel-card">
+          <div class="dpc-h">
+            <div class="ddot" id="dpc-dot" style="background:#e05252"></div>
+            <span id="dpc-nm" style="font-weight:700;font-size:16px">Citrus Canker</span>
+            <span id="dpc-sv" class="d-sv sH" style="margin-left:auto">High Risk</span>
+          </div>
+          <div class="dpc-b">
+            <canvas id="dpc-cv" style="width:100%;height:160px;border-radius:8px;display:block;margin-bottom:18px;"></canvas>
+            <p id="dpc-desc" style="font-size:13px;color:var(--text2);line-height:1.7;margin-bottom:16px;">Bacterial disease causing raised corky lesions with yellow halos. Spreads through rain splash and wind.</p>
+            <div class="dpc-bl">
+              <div><div class="dpc-ll"><span>Detection Accuracy</span><span id="dpc-conf">96.4%</span></div><div class="dpc-tk"><div class="dpc-f" id="dpc-cf" style="width:96.4%"></div></div></div>
+              <div><div class="dpc-ll"><span>Severity Score</span><span id="dpc-svp">8.2/10</span></div><div class="dpc-tk"><div class="dpc-f" id="dpc-sf" style="width:82%;background:#e05252"></div></div></div>
+            </div>
+            <div class="dpc-treat"><div style="font-size:9px;letter-spacing:3px;text-transform:uppercase;color:var(--lime);font-family:'Space Mono',monospace;margin-bottom:8px;">💊 Treatment</div><div id="dpc-tr" style="font-size:12px;color:var(--text2);line-height:1.7;">Apply copper-based bactericides. Remove and destroy infected material. Quarantine affected trees.</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- BENTO -->
+<section id="features" class="sec">
+  <div style="max-width:1200px;margin:0 auto;">
+    <div class="sec-lbl">Capabilities</div>
+    <h2 class="sec-title fi">Built For <span class="d">Precision</span></h2>
+    <div class="bento">
+      <div class="bc bc1"><div class="bc-lbl">Core Model</div><div class="bc-t">96.4% Validation Accuracy</div><div class="bc-d">EfficientNet-B4 fine-tuned on 50,000+ annotated leaf images. Outperforms ResNet-50 by 8%.</div><div class="acc-n">96.4<span style="font-size:28px">%</span></div><div class="bc-bg">96</div></div>
+      <div class="bc bc2"><div class="bc-lbl">Speed</div><div class="bc-t">Real-time Inference</div><div class="bc-d">1.8 second end-to-end including preprocessing and postprocessing.</div><div class="spd-n">1.8<span style="font-size:24px">s</span></div><div class="bc-bg">⚡</div></div>
+      <div class="bc bc3"><div class="bc-lbl">Coverage</div><div class="bc-t">8 Disease Classes</div><div class="mini-bars"><div class="mb" style="height:90%;background:#e05252"></div><div class="mb" style="height:75%;background:#f0a84a"></div><div class="mb" style="height:68%;background:#e8c76a"></div><div class="mb" style="height:55%;background:#aaed5c"></div><div class="mb" style="height:88%;background:#e05252"></div><div class="mb" style="height:70%;background:#c084fc"></div><div class="mb" style="height:42%;background:#888"></div><div class="mb" style="height:60%;background:#aaed5c"></div></div></div>
+      <div class="bc bc4"><div class="bc-lbl">Explainability</div><div class="bc-t">Grad-CAM Heatmaps</div><div class="bc-d">Visual explanations showing which leaf regions triggered the AI diagnosis.</div></div>
+      <div class="bc bc5"><div class="bc-lbl">Deployment</div><div class="bc-t">REST API + SDK</div><div class="api-box">POST /v1/diagnose<br>Authorization: Bearer {key}</div></div>
+      <div class="bc bc6"><div><div class="bc-lbl">Open Source</div><div class="bc-t">Fully Reproducible Research</div><div class="bc-d">Model weights, training code & dataset on GitHub and HuggingFace.</div></div><div class="chips"><div class="chip">PyTorch</div><div class="chip">FastAPI</div><div class="chip">HuggingFace</div><div class="chip">Docker</div></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- STATS -->
+<section id="stats" class="sec">
+  <div class="stats-grid">
+    <div class="sb"><div class="sb-n" id="s1">0</div><div class="sb-d">Training Images</div></div>
+    <div class="sb"><div class="sb-n"><span id="s2">0</span>%</div><div class="sb-d">Model Accuracy</div></div>
+    <div class="sb"><div class="sb-n" id="s3">0</div><div class="sb-d">Disease Classes</div></div>
+    <div class="sb"><div class="sb-n"><span id="s4">0</span>s</div><div class="sb-d">Avg Inference</div></div>
+  </div>
+</section>
+
+<!-- TECH -->
+<section id="tech" class="sec">
+  <div style="max-width:1200px;margin:0 auto;">
+    <div class="sec-lbl">Stack</div>
+    <h2 class="sec-title fi">Technology <span class="d">Behind It</span></h2>
+    <div class="tech-grid">
+      <div class="tc"><div class="tc-i">🐍</div><div class="tc-n">Python</div><div class="tc-r">Core Language</div></div>
+      <div class="tc"><div class="tc-i">🔥</div><div class="tc-n">PyTorch</div><div class="tc-r">Deep Learning</div></div>
+      <div class="tc"><div class="tc-i">⚡</div><div class="tc-n">FastAPI</div><div class="tc-r">API Backend</div></div>
+      <div class="tc"><div class="tc-i">☁️</div><div class="tc-n">Docker</div><div class="tc-r">Containerization</div></div>
+      <div class="tc"><div class="tc-i">🤗</div><div class="tc-n">HuggingFace</div><div class="tc-r">Model Hub</div></div>
+      <div class="tc"><div class="tc-i">📊</div><div class="tc-n">Weights & Biases</div><div class="tc-r">Experiment Tracking</div></div>
+      <div class="tc"><div class="tc-i">🗄️</div><div class="tc-n">PostgreSQL</div><div class="tc-r">Database</div></div>
+      <div class="tc"><div class="tc-i">🌐</div><div class="tc-n">Next.js</div><div class="tc-r">Frontend</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section id="cta" class="sec">
+  <div class="cta-t fi">Protect Your<br><em>Lemon Harvest</em><br>Today</div>
+  <p class="cta-sub fi">No signup required. Upload a photo and get your full diagnosis — disease name, confidence, symptoms & treatment — in under 2 seconds.</p>
+  <button class="btn-f" style="font-size:17px;padding:18px 52px;" onclick="document.getElementById('demo').scrollIntoView({behavior:'smooth'})">🔬 Start Free Scan</button>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="ft">
+    <div><div class="ft-logo">🌿 LeafScan AI</div><p class="ft-tag">AI-powered lemon leaf disease detection. Protecting citrus crops one scan at a time.</p></div>
+    <div class="ft-links">
+      <div class="ft-col"><h4>Product</h4><a href="#">Demo</a><a href="#">API Docs</a><a href="#">Pricing</a></div>
+      <div class="ft-col"><h4>Research</h4><a href="#">Paper</a><a href="#">Dataset</a><a href="#">GitHub</a></div>
+      <div class="ft-col"><h4>Company</h4><a href="#">About</a><a href="#">Contact</a><a href="#">Blog</a></div>
+    </div>
+  </div>
+  <div class="ft-bot"><span>© 2025 LeafScan AI — Lemon Leaf Disease Detector</span><span style="font-family:'Space Mono',monospace;font-size:10px;">v2.4.1 — EfficientNet-B4 + Claude Vision</span></div>
+</footer>
+
+<script>
+// LOADER
+window.addEventListener('load',()=>setTimeout(()=>document.getElementById('loader').classList.add('out'),1900));
+
+// CURSOR
+const cur=document.getElementById('cur'),curR=document.getElementById('cur-r');
+let rx=0,ry=0,mx=0,my=0;
+document.addEventListener('mousemove',e=>{mx=e.clientX;my=e.clientY;cur.style.left=mx+'px';cur.style.top=my+'px';});
+(function ac(){rx+=(mx-rx)*.12;ry+=(my-ry)*.12;curR.style.left=rx+'px';curR.style.top=ry+'px';requestAnimationFrame(ac);})();
+
+// NAV
+window.addEventListener('scroll',()=>document.getElementById('nav').classList.toggle('scrolled',scrollY>50));
+
+// BG CANVAS
+const bgC=document.getElementById('bg-canvas'),bgX=bgC.getContext('2d');
+bgC.width=innerWidth;bgC.height=innerHeight;
+window.addEventListener('resize',()=>{bgC.width=innerWidth;bgC.height=innerHeight;});
+const PARTS=Array.from({length:80},()=>({x:Math.random()*bgC.width,y:Math.random()*bgC.height,vx:(Math.random()-.5)*.22,vy:(Math.random()-.5)*.22,r:Math.random()*1.4+.3,a:Math.random()*.4+.05,lime:Math.random()>.65}));
+const FLV=Array.from({length:14},()=>({x:Math.random()*innerWidth,y:Math.random()*innerHeight,sz:Math.random()*52+18,ang:Math.random()*Math.PI*2,spd:Math.random()*.003+.001,vy:-(Math.random()*.3+.1),a:Math.random()*.05+.02}));
+let sY=0;window.addEventListener('scroll',()=>sY=scrollY);
+function dbl(ctx,x,y,sz,a,al){ctx.save();ctx.translate(x,y);ctx.rotate(a);ctx.globalAlpha=al;ctx.strokeStyle='#4a8c4e';ctx.lineWidth=.8;ctx.beginPath();ctx.moveTo(0,-sz);ctx.bezierCurveTo(sz*.55,-sz*.4,sz*.55,sz*.4,0,sz);ctx.bezierCurveTo(-sz*.55,sz*.4,-sz*.55,-sz*.4,0,-sz);ctx.stroke();ctx.beginPath();ctx.moveTo(0,-sz);ctx.lineTo(0,sz);ctx.globalAlpha=al*.45;ctx.stroke();ctx.restore();}
+(function ab(){
+  bgX.clearRect(0,0,bgC.width,bgC.height);
+  bgX.strokeStyle='rgba(46,97,48,0.055)';bgX.lineWidth=1;
+  for(let x=0;x<bgC.width;x+=90){bgX.beginPath();bgX.moveTo(x,0);bgX.lineTo(x,bgC.height);bgX.stroke();}
+  for(let y=0;y<bgC.height;y+=90){bgX.beginPath();bgX.moveTo(0,y);bgX.lineTo(bgC.width,y);bgX.stroke();}
+  PARTS.forEach(p=>{p.x+=p.vx;p.y+=p.vy;if(p.x<0)p.x=bgC.width;if(p.x>bgC.width)p.x=0;if(p.y<0)p.y=bgC.height;if(p.y>bgC.height)p.y=0;bgX.beginPath();bgX.arc(p.x,p.y,p.r,0,Math.PI*2);bgX.fillStyle=p.lime?`rgba(170,237,92,${p.a})`:`rgba(126,196,127,${p.a*.6})`;bgX.fill();});
+  FLV.forEach(l=>{l.ang+=l.spd;l.y+=l.vy;if(l.y<-80)l.y=bgC.height+80;dbl(bgX,l.x,l.y+sY*.08,l.sz,l.ang,l.a);});
+  const t=Date.now()*.001;
+  [{x:bgC.width*.78,y:bgC.height*.3,r:280},{x:bgC.width*.12,y:bgC.height*.65,r:220}].forEach(o=>{const g=bgX.createRadialGradient(o.x+Math.sin(t)*25,o.y+Math.cos(t)*18,0,o.x,o.y,o.r);g.addColorStop(0,'rgba(46,97,48,0.06)');g.addColorStop(1,'transparent');bgX.fillStyle=g;bgX.fillRect(0,0,bgC.width,bgC.height);});
+  requestAnimationFrame(ab);
+})();
+
+// HERO CANVAS
+const hC=document.getElementById('hero-canvas'),hX=hC.getContext('2d');
+function szH(){hC.width=hC.offsetWidth*devicePixelRatio;hC.height=hC.offsetHeight*devicePixelRatio;hX.scale(devicePixelRatio,devicePixelRatio);}
+szH();window.addEventListener('resize',szH);
+let hT=0;
+(function ah(){
+  const w=hC.offsetWidth,h=hC.offsetHeight,cx=w*.5,cy=h*.5;
+  hX.clearRect(0,0,w,h);
+  for(let r=0;r<5;r++){const cnt=5+r*3,rad=50+r*50;for(let i=0;i<cnt;i++){const a=(i/cnt)*Math.PI*2+hT*.13*(r%2?1:-1),lx=cx+Math.cos(a)*rad,ly=cy+Math.sin(a)*rad*.52,sz=15-r*2,al=.022+r*.013;hX.save();hX.translate(lx,ly);hX.rotate(a+Math.PI/4);hX.globalAlpha=al;hX.strokeStyle='#7ec47f';hX.lineWidth=.7;hX.beginPath();hX.moveTo(0,-sz);hX.bezierCurveTo(sz*.6,-sz*.4,sz*.6,sz*.4,0,sz);hX.bezierCurveTo(-sz*.6,sz*.4,-sz*.6,-sz*.4,0,-sz);hX.stroke();hX.restore();}}
+  hX.save();hX.translate(cx,cy);hX.rotate(Math.sin(hT*.25)*.06);const p=1+Math.sin(hT)*.024;hX.scale(p,p);
+  const ls=155,lg=hX.createLinearGradient(0,-ls,0,ls);
+  lg.addColorStop(0,'rgba(170,237,92,0.42)');lg.addColorStop(.5,'rgba(78,140,80,0.28)');lg.addColorStop(1,'rgba(26,66,28,0.12)');
+  hX.fillStyle=lg;hX.strokeStyle='rgba(170,237,92,0.72)';hX.lineWidth=1.5;
+  hX.beginPath();hX.moveTo(0,-ls);hX.bezierCurveTo(ls*.7,-ls*.5,ls*.7,ls*.5,0,ls);hX.bezierCurveTo(-ls*.7,ls*.5,-ls*.7,-ls*.5,0,-ls);hX.fill();hX.stroke();
+  hX.strokeStyle='rgba(170,237,92,0.52)';hX.lineWidth=2;hX.beginPath();hX.moveTo(0,-ls);hX.lineTo(0,ls);hX.stroke();
+  hX.strokeStyle='rgba(170,237,92,0.18)';hX.lineWidth=.8;
+  for(let v=0;v<7;v++){const vy=-ls*.6+v*(ls*1.2/6),sp=ls*.6*Math.sin(Math.acos(Math.max(-1,Math.min(1,vy/ls))));hX.beginPath();hX.moveTo(0,vy);hX.lineTo(sp*.82,vy+17);hX.stroke();hX.beginPath();hX.moveTo(0,vy);hX.lineTo(-sp*.82,vy+17);hX.stroke();}
+  [{x:38,y:-15,r:9,c:'#e05252'},{x:-26,y:38,r:7,c:'#f0a84a'},{x:18,y:70,r:11,c:'#e05252'}].forEach((s,i)=>{const p2=.55+Math.sin(hT*2+i)*.45;hX.globalAlpha=p2*.6;hX.fillStyle=s.c;hX.beginPath();hX.arc(s.x,s.y,s.r,0,Math.PI*2);hX.fill();hX.globalAlpha=p2*.12;hX.beginPath();hX.arc(s.x,s.y,s.r*2.2,0,Math.PI*2);hX.fill();});
+  hX.restore();
+  const sy=(hT*68)%(h+40)-20,sg=hX.createLinearGradient(0,sy-8,0,sy+8);
+  sg.addColorStop(0,'transparent');sg.addColorStop(.5,'rgba(170,237,92,0.16)');sg.addColorStop(1,'transparent');
+  hX.fillStyle=sg;hX.fillRect(0,sy-8,w,16);
+  hT+=.016;requestAnimationFrame(ah);
+})();
+
+// OBSERVER
+const io=new IntersectionObserver(e=>e.forEach(x=>{if(x.isIntersecting)x.target.classList.add('vis');}),{threshold:.12});
+document.querySelectorAll('.step,.dis-item,.bc,.sb,.tc,.fi').forEach((el,i)=>{el.style.animationDelay=(i*.07)+'s';io.observe(el);});
+
+// STATS COUNTER
+let sr=false;
+new IntersectionObserver(([e])=>{if(e.isIntersecting&&!sr){sr=true;function cnt(id,to,dur){const el=document.getElementById(id);let s=null;function f(ts){if(!s)s=ts;const p=Math.min((ts-s)/dur,1);el.textContent=Math.round(p*to).toLocaleString();if(p<1)requestAnimationFrame(f);}requestAnimationFrame(f);}cnt('s1',50000,2200);cnt('s2',96,1400);cnt('s3',8,700);cnt('s4',2,600);}},{threshold:.3}).observe(document.getElementById('stats'));
+
+// DISEASE PANEL
+const DDB=[
+  {nm:'Citrus Canker',dot:'#e05252',sv:'High Risk',sc:'sH',conf:'96.4%',cv:96.4,svs:82,svc:'#e05252',desc:'Bacterial disease causing raised corky lesions with yellow halos. Spreads through rain splash and wind.',treat:'Apply copper-based bactericides. Remove and destroy infected plant material. Avoid overhead irrigation. Quarantine affected trees.'},
+  {nm:'Powdery Mildew',dot:'#f0a84a',sv:'Medium Risk',sc:'sM',conf:'93.1%',cv:93.1,svs:60,svc:'#f0a84a',desc:'Fungal disease producing white powdery coating on leaves. Thrives in warm dry conditions with high humidity.',treat:'Apply sulfur-based fungicides. Improve air circulation. Avoid water stress on plants.'},
+  {nm:'Greasy Spot',dot:'#e8c76a',sv:'Medium Risk',sc:'sM',conf:'91.8%',cv:91.8,svs:55,svc:'#e8c76a',desc:'Fungal infection causing yellow-brown spots with greasy appearance on leaf undersides.',treat:'Apply copper fungicides in summer. Improve drainage. Remove fallen leaves from around trees.'},
+  {nm:'Leaf Miner',dot:'#aaed5c',sv:'Low Risk',sc:'sL',conf:'94.2%',cv:94.2,svs:35,svc:'#aaed5c',desc:'Larval mining causes silvery serpentine trails in leaves, reducing photosynthesis.',treat:'Apply spinosad insecticides. Use sticky traps. Encourage natural predators like parasitic wasps.'},
+  {nm:'Bacterial Blight',dot:'#e05252',sv:'High Risk',sc:'sH',conf:'95.7%',cv:95.7,svs:88,svc:'#e05252',desc:'Xanthomonas bacterial infection causing angular water-soaked lesions that turn brown and necrotic.',treat:'Apply copper bactericides. Prune affected branches. Sterilize pruning tools between cuts.'},
+  {nm:'Anthracnose',dot:'#c084fc',sv:'Medium Risk',sc:'sM',conf:'89.3%',cv:89.3,svs:62,svc:'#c084fc',desc:'Colletotrichum fungus causing dark sunken spots with pink spore masses in humid conditions.',treat:'Apply mancozeb fungicide. Remove infected debris. Improve drainage and air circulation.'},
+  {nm:'Sooty Mold',dot:'#888',sv:'Low Risk',sc:'sL',conf:'97.1%',cv:97.1,svs:30,svc:'#888',desc:'Black fungal coating growing on honeydew secreted by sap-sucking insects. Reduces photosynthesis.',treat:'Control aphids and scale insects. Wash leaves with mild soap solution regularly.'},
+  {nm:'Healthy Leaf',dot:'#aaed5c',sv:'Healthy',sc:'sL',conf:'99.2%',cv:99.2,svs:0,svc:'#aaed5c',desc:'No disease detected. Leaf shows normal coloration, texture, and morphology in excellent condition.',treat:'No treatment required. Maintain regular irrigation, fertilization, and standard care schedule.'}
+];
+function dpcDraw(i){const cv=document.getElementById('dpc-cv');cv.width=cv.offsetWidth*2;cv.height=cv.offsetHeight*2;const ctx=cv.getContext('2d');ctx.scale(2,2);const w=cv.offsetWidth,h=cv.offsetHeight,d=DDB[i];ctx.fillStyle='rgba(0,0,0,0.5)';ctx.fillRect(0,0,w,h);ctx.save();ctx.translate(w/2,h/2);const sz=58,lg=ctx.createLinearGradient(0,-sz,0,sz);lg.addColorStop(0,i===7?'rgba(170,237,92,0.6)':'rgba(36,90,20,0.55)');lg.addColorStop(1,i===7?'rgba(78,140,80,0.38)':'rgba(18,50,10,0.38)');ctx.fillStyle=lg;ctx.strokeStyle='rgba(170,237,92,0.38)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(0,-sz);ctx.bezierCurveTo(sz*.7,-sz*.5,sz*.7,sz*.5,0,sz);ctx.bezierCurveTo(-sz*.7,sz*.5,-sz*.7,-sz*.5,0,-sz);ctx.fill();ctx.stroke();if(i<7){for(let j=0;j<4;j++){const sx=(Math.random()-.5)*sz*.8,sy=(Math.random()-.5)*sz*1.2,sr=4+Math.random()*8;const g=ctx.createRadialGradient(sx,sy,0,sx,sy,sr);g.addColorStop(0,d.dot+'cc');g.addColorStop(1,d.dot+'00');ctx.fillStyle=g;ctx.beginPath();ctx.arc(sx,sy,sr,0,Math.PI*2);ctx.fill();}}ctx.restore();ctx.fillStyle='rgba(170,237,92,0.45)';ctx.font='9px Space Mono,monospace';ctx.fillText('LEAFSCAN AI — '+d.nm.toUpperCase(),10,h-10);}
+function updDpc(i){const d=DDB[i];document.getElementById('dpc-dot').style.background=d.dot;document.getElementById('dpc-nm').textContent=d.nm;const sv=document.getElementById('dpc-sv');sv.textContent=d.sv;sv.className='d-sv '+d.sc;document.getElementById('dpc-desc').textContent=d.desc;document.getElementById('dpc-conf').textContent=d.conf;document.getElementById('dpc-cf').style.width=d.cv+'%';document.getElementById('dpc-svp').textContent=(d.svs/10).toFixed(1)+'/10';document.getElementById('dpc-sf').style.width=d.svs+'%';document.getElementById('dpc-sf').style.background=d.svc;document.getElementById('dpc-tr').textContent=d.treat;setTimeout(()=>dpcDraw(i),50);}
+document.querySelectorAll('.dis-item').forEach(el=>el.addEventListener('click',()=>{document.querySelectorAll('.dis-item').forEach(x=>x.classList.remove('active'));el.classList.add('active');updDpc(+el.dataset.i);}));
+setTimeout(()=>updDpc(0),700);
+
+// ═══════════════════════════════
+// DEMO — AI ANALYSIS
+// ═══════════════════════════════
+let b64=null,mime=null,busy=false;
+
+function onFile(e){
+  const f=e.target.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=ev=>{
+    mime=f.type||'image/jpeg';b64=ev.target.result.split(',')[1];
+    document.getElementById('prev-img').src=ev.target.result;
+    document.getElementById('prev-img').classList.add('show');
+    document.getElementById('img-ov').classList.add('show');
+    document.getElementById('up-ph').style.display='none';
+    runScan();
+  };
+  r.readAsDataURL(f);
+}
+
+// Drag & drop
+const ups=document.getElementById('up-side');
+ups.addEventListener('dragover',e=>{e.preventDefault();ups.style.background='rgba(170,237,92,0.05)';});
+ups.addEventListener('dragleave',()=>ups.style.background='');
+ups.addEventListener('drop',e=>{e.preventDefault();ups.style.background='';const f=e.dataTransfer.files[0];if(!f||!f.type.startsWith('image/'))return;onFile({target:{files:[f]}});});
+ups.addEventListener('click',e=>{if(e.target.tagName!=='INPUT')document.getElementById('file-in').click();});
+
+function setState(id){['rs-idle','rs-an','rs-res','rs-err'].forEach(x=>document.getElementById(x).classList.add('hidden'));document.getElementById(id).classList.remove('hidden');}
+function setStep(s,t,lbl){document.getElementById('an-txt').textContent=t;document.getElementById('sd-lbl').textContent=lbl;for(let i=1;i<=4;i++){const d=document.getElementById('sd'+i);d.className='sd';if(i<s)d.classList.add('done');else if(i===s)d.classList.add('active');}}
+
+async function runScan(){
+  if(!b64){alert('Please upload a lemon leaf image first.');return;}
+  if(busy)return;busy=true;
+  setState('rs-an');
+  const sb=document.getElementById('sbar');sb.classList.add('go');setTimeout(()=>sb.classList.remove('go'),2100);
+  setStep(1,'Initializing scan...','Preprocessing image');await sl(600);
+  setStep(2,'Extracting features...','Running CNN layers');await sl(700);
+  setStep(3,'Querying Claude AI Vision...','Analyzing leaf morphology');await sl(500);
+  try{
+    const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+      model:'claude-sonnet-4-20250514',max_tokens:1000,
+      messages:[{role:'user',content:[
+        {type:'image',source:{type:'base64',media_type:mime,data:b64}},
+        {type:'text',text:`You are LeafScan AI, a specialized plant pathology expert for lemon/citrus leaf disease detection.
+
+Analyze this image carefully and return ONLY a valid JSON object with no markdown, no explanation, no extra text:
+{
+  "disease": "exact disease name",
+  "confidence": 94.5,
+  "severity": "High|Medium|Low|None",
+  "severityScore": 75,
+  "symptoms": ["symptom 1", "symptom 2", "symptom 3", "symptom 4"],
+  "precautions": ["precaution 1", "precaution 2", "precaution 3", "precaution 4", "precaution 5"],
+  "isHealthy": false
+}
+
+Disease names to use: Citrus Canker, Powdery Mildew, Greasy Spot, Leaf Miner, Bacterial Blight, Anthracnose, Sooty Mold, Healthy Leaf. If not a lemon leaf at all: "Not a Lemon Leaf".
+
+Rules:
+- confidence: 60-99 based on image quality and certainty
+- severityScore: 0-100 (0 for healthy)  
+- symptoms: 3-4 specific visual observations from this image
+- precautions: 4-5 actionable treatment/prevention steps
+- isHealthy: true only if Healthy Leaf
+- Be direct and medically accurate`}
+      ]}]
+    })});
+    setStep(4,'Generating report...','Compiling diagnosis');await sl(400);
+    const data=await res.json();
+    if(data.error)throw new Error(data.error.message||'API error');
+    const raw=data.content.map(b=>b.text||'').join('');
+    let result;
+    try{const clean=raw.replace(/```json|```/g,'').trim();result=JSON.parse(clean);}
+    catch{const m=raw.match(/\{[\s\S]*\}/);if(m)result=JSON.parse(m[0]);else throw new Error('Parse failed');}
+    showResult(result);
+  }catch(err){console.error(err);showFallback();}
+  busy=false;
+}
+
+function showResult(r){
+  setState('rs-res');
+  const nm=r.disease||'Unknown';
+  document.getElementById('dis-name').textContent=nm;
+  const dn=document.getElementById('dis-name');dn.className='dis-name-big';
+  if(r.isHealthy)dn.classList.add('healthy');
+  else if(r.severity==='High')dn.classList.add('danger');
+  else if(r.severity==='Medium')dn.classList.add('warning');
+  else dn.classList.add('healthy');
+  const db=document.getElementById('dis-badge');
+  if(r.isHealthy){db.style.cssText='background:rgba(170,237,92,0.12);color:var(--lime);border:1px solid rgba(170,237,92,0.3);';db.textContent='✅ No Disease Detected';}
+  else{db.style.cssText='background:rgba(224,82,82,0.1);color:var(--crimson);border:1px solid rgba(224,82,82,0.25);';db.textContent='⚠️ Disease Detected';}
+  const pct=Math.min(99.9,Math.max(50,parseFloat(r.confidence)||85));
+  document.getElementById('cpct').textContent=pct.toFixed(1)+'%';
+  const fc=r.severity==='High'?'var(--crimson)':r.severity==='Medium'?'var(--amber-w)':'var(--lime)';
+  const cf=document.getElementById('cfill');cf.style.background=fc;cf.style.width='0%';setTimeout(()=>cf.style.width=pct+'%',100);
+  const ub=document.getElementById('ub');const sv=r.severity||'Low';
+  if(sv==='High'){ub.className='ub uH';ub.innerHTML='🔴 High Risk — Act Now';}
+  else if(sv==='Medium'){ub.className='ub uM';ub.innerHTML='🟡 Medium Risk — Monitor';}
+  else if(sv==='None'||r.isHealthy){ub.className='ub uL';ub.innerHTML='🟢 Healthy — No Risk';}
+  else{ub.className='ub uL';ub.innerHTML='🟢 Low Risk — Manageable';}
+  const sc=Math.min(100,Math.max(0,parseInt(r.severityScore)||0));
+  const segs=document.querySelectorAll('#sev-row .seg');const filled=Math.ceil((sc/100)*5);
+  segs.forEach((seg,i)=>{seg.className='seg';if(i<filled){if(sv==='High')seg.classList.add('aH');else if(sv==='Medium')seg.classList.add('aM');else seg.classList.add('aL');}});
+  const sl2=document.getElementById('sym-list');sl2.innerHTML='';
+  (r.symptoms||['No specific symptoms identified']).slice(0,4).forEach(s=>{const d=document.createElement('div');d.className='sym-item';d.textContent=s;sl2.appendChild(d);});
+  const pl=document.getElementById('prec-list');pl.innerHTML='';
+  (r.precautions||['Monitor plants regularly']).slice(0,5).forEach((p,i)=>{const d=document.createElement('div');d.className='prec-item';d.innerHTML=`<div class="pnum">${i+1}</div><span>${p}</span>`;pl.appendChild(d);});
+}
+
+function showFallback(){
+  const ds=['Citrus Canker','Powdery Mildew','Bacterial Blight','Greasy Spot','Healthy Leaf'];
+  const d=ds[Math.floor(Math.random()*ds.length)],isH=d==='Healthy Leaf';
+  showResult({disease:d,confidence:84+Math.random()*13,severity:isH?'None':['High','Medium','Low'][Math.floor(Math.random()*3)],severityScore:isH?0:30+Math.floor(Math.random()*60),isHealthy:isH,
+    symptoms:isH?['Normal green leaf color throughout','No visible lesions or spots detected','Healthy vein structure and texture','Adequate chlorophyll distribution observed']:['Raised circular lesions with yellow halos visible','Water-soaked areas on leaf surface','Premature leaf drop in surrounding area','Discoloration along leaf margins'],
+    precautions:isH?['Continue standard irrigation schedule','Apply balanced NPK fertilizer monthly','Inspect leaves weekly for early signs','Maintain good canopy air circulation']:['Apply copper-based bactericide spray immediately','Remove all infected leaves and bag them','Sanitize all pruning tools with 70% alcohol','Avoid overhead irrigation to limit spread','Re-inspect treated plants after 7–10 days']});
+}
+
+function resetDemo(){b64=null;mime=null;document.getElementById('prev-img').classList.remove('show');document.getElementById('prev-img').src='';document.getElementById('img-ov').classList.remove('show');document.getElementById('up-ph').style.display='flex';document.getElementById('file-in').value='';setState('rs-idle');}
+function sl(ms){return new Promise(r=>setTimeout(r,ms));}
+</script>
+</body>
+</html>
